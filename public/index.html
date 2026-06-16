@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infinity Chat - Messaging</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: { 500: '#007AFF', 600: '#0056b3' } 
+          }
+        }
+      }
+    }
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer components {
+      /* Base Elements */
+      .input-field { @apply w-full bg-slate-100 border border-transparent text-slate-900 px-4 py-2.5 rounded-lg text-sm outline-none focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all placeholder:text-slate-400; }
+      .btn-primary { @apply bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm py-2.5 px-4 rounded-lg transition-colors active:scale-[0.98] flex items-center justify-center gap-2; }
+      
+      /* Modals */
+      .modal-overlay { @apply fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[10000] opacity-0 pointer-events-none transition-opacity duration-200; }
+      .modal-overlay.visible { @apply opacity-100 pointer-events-auto; }
+      .modal-content { @apply bg-white w-11/12 max-w-md rounded-xl shadow-2xl overflow-hidden scale-95 transition-transform duration-200; }
+      .modal-overlay.visible .modal-content { @apply scale-100; }
+
+      /* JS Generated Chat Lists */
+      .online-user-item { @apply flex items-center gap-3 p-2.5 rounded-lg transition-colors cursor-pointer hover:bg-slate-100 border border-transparent; }
+      .online-user-item.selected { @apply bg-blue-50/60 border-blue-100; }
+      .online-user-name { @apply text-sm font-semibold text-slate-800 truncate flex-1; }
+      
+      .avatar-wrapper { @apply relative flex shrink-0; }
+      .online-user-avatar { @apply w-10 h-10 rounded-full bg-slate-200 border border-slate-200 object-cover; }
+      .online-indicator { @apply absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white; }
+      .online-indicator.online { @apply bg-green-500; }
+      .online-indicator.offline { @apply bg-slate-400; }
+      
+      .room-icon-badge { @apply text-lg flex items-center justify-center w-10 h-10 bg-slate-100 border border-slate-200 rounded-full text-slate-600; }
+      .unread-badge { @apply bg-brand-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm; }
+
+      /* Chat Messages */
+      .msg-system { @apply self-center bg-slate-100 text-slate-500 text-xs font-medium px-4 py-1.5 rounded-full my-4; }
+      .msg-wrapper { @apply flex gap-3 max-w-[85%] md:max-w-[70%]; }
+      .msg-wrapper.me { @apply self-end flex-row-reverse; }
+      .msg-wrapper.other { @apply self-start; }
+      .msg-avatar { @apply w-8 h-8 rounded-full shrink-0 border border-slate-200 object-cover; }
+      .msg-body-wrapper { @apply flex flex-col gap-1; }
+      .msg-meta { @apply text-[11px] text-slate-500 font-medium flex gap-2 items-center mb-0.5; }
+      .msg-wrapper.me .msg-meta { @apply justify-end; }
+      .msg-sender { @apply text-slate-700 font-semibold; }
+      .msg-time { @apply font-normal opacity-70; }
+      .msg-bubble { @apply px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed break-words shadow-sm; }
+      .msg-wrapper.me .msg-bubble { @apply bg-brand-500 text-white rounded-tr-sm; }
+      .msg-wrapper.other .msg-bubble { @apply bg-white border border-slate-200 text-slate-800 rounded-tl-sm; }
+
+      /* Thin Nav Action Icons */
+      .nav-icon-btn { @apply w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer; }
+      .nav-icon-btn.active { @apply text-brand-500 bg-blue-50; }
+    }
+
+    body { background-color: #F8FAFC; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="font-sans text-slate-900 min-h-[100dvh] flex items-center justify-center overflow-hidden selection:bg-brand-500/30 selection:text-brand-600">
+  
+  <!-- Notification Banner -->
+  <div id="notification-banner" class="fixed top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-slate-800 text-white px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg z-[9999] opacity-0 pointer-events-none -translate-y-[150%] transition-all duration-300">
+    <span>🔔</span>
+    <span id="notification-text" class="flex-1 text-sm font-medium">System notice</span>
+    <button onclick="closeNotification()" class="w-6 h-6 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-xs">✕</button>
+  </div>
+  
+  <!-- AUTHENTICATION VIEW -->
+  <div id="auth-view" class="bg-white w-full max-w-[400px] p-8 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-6 z-10 m-4">
+    <div class="text-center flex flex-col gap-1">
+      <h1 class="text-2xl font-bold text-slate-900">Infinity Chat</h1>
+      <p id="auth-subtitle" class="text-sm text-slate-500">Sign in to continue</p>
+    </div>
+
+    <div class="flex bg-slate-100 p-1 rounded-lg">
+      <button id="tab-login" class="flex-1 py-1.5 text-slate-600 font-medium text-sm rounded-md transition-all active bg-white shadow-sm" onclick="switchTab('login')">Sign In</button>
+      <button id="tab-register" class="flex-1 py-1.5 text-slate-500 font-medium text-sm rounded-md transition-all" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <div id="auth-error-box" class="hidden bg-red-50 text-red-600 border border-red-100 px-3 py-2 rounded-lg text-sm font-medium"></div>
+
+    <form id="auth-form-el" class="flex flex-col gap-4" onsubmit="handleAuthSubmit(event)">
+      <div class="flex flex-col gap-1.5">
+        <label for="auth-username" class="text-xs font-semibold text-slate-600">Username</label>
+        <input type="text" id="auth-username" class="input-field" placeholder="Enter username..." required minlength="3" maxlength="15" autocomplete="username">
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="auth-password" class="text-xs font-semibold text-slate-600">Password</label>
+        <input type="password" id="auth-password" class="input-field" placeholder="Enter password..." required minlength="6" autocomplete="current-password">
+      </div>
+      
+      <div id="avatar-selection-wrapper" class="hidden flex-col gap-2 mt-2">
+        <label class="text-xs font-semibold text-slate-600">Select Avatar</label>
+        <div class="grid grid-cols-4 gap-2">
+          <div class="border-2 border-brand-500 rounded-xl p-1 cursor-pointer avatar-option selected" onclick="selectAvatar(0)" data-seed="Leo"><img src="https://api.dicebear.com/7.x/bottts/svg?seed=Leo" class="w-10 h-10 rounded-full"></div>
+          <div class="border-2 border-transparent rounded-xl p-1 cursor-pointer avatar-option hover:bg-slate-50" onclick="selectAvatar(1)" data-seed="Luna"><img src="https://api.dicebear.com/7.x/bottts/svg?seed=Luna" class="w-10 h-10 rounded-full"></div>
+          <div class="border-2 border-transparent rounded-xl p-1 cursor-pointer avatar-option hover:bg-slate-50" onclick="selectAvatar(2)" data-seed="Milo"><img src="https://api.dicebear.com/7.x/bottts/svg?seed=Milo" class="w-10 h-10 rounded-full"></div>
+          <div class="border-2 border-transparent rounded-xl p-1 cursor-pointer avatar-option hover:bg-slate-50" onclick="selectAvatar(3)" data-seed="Oliver"><img src="https://api.dicebear.com/7.x/bottts/svg?seed=Oliver" class="w-10 h-10 rounded-full"></div>
+        </div>
+      </div>
+
+      <button type="submit" id="auth-submit-btn" class="btn-primary mt-2">Sign In</button>
+    </form>
+  </div>
+  
+  <!-- CHAT VIEW (3-COLUMN DESKTOP LAYOUT) -->
+  <div id="chat-view" class="hidden w-full h-[100dvh] bg-white flex overflow-hidden">
+    
+    <!-- COLUMN 1: Thin Navigation Dock -->
+    <nav class="w-[72px] bg-slate-50 border-r border-slate-200 flex flex-col items-center py-5 shrink-0 hidden md:flex">
+      <!-- Brand Icon (Green squircle) -->
+      <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white text-xl shadow-sm mb-6">
+        💬
+      </div>
+      
+      <!-- Nav Links -->
+      <div class="flex flex-col gap-4 flex-1 w-full items-center">
+        <div class="nav-icon-btn active" title="All Chats">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        </div>
+      </div>
+
+      <!-- Footer Nav (Status, Profile, Logout) -->
+      <div class="flex flex-col gap-4 items-center">
+        <div id="ws-status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm transition-colors" title="Connection Status"></div>
+        <img id="my-profile-avatar" src="" alt="Me" class="w-10 h-10 rounded-full border border-slate-200 cursor-pointer object-cover">
+        <button onclick="handleLogout()" class="nav-icon-btn text-slate-400 hover:text-red-500 hover:bg-red-50" title="Log Out">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
+      </div>
+    </nav>
+
+    <!-- COLUMN 2: Messages List Panel -->
+    <aside id="chat-sidebar" class="w-full md:w-[340px] bg-white border-r border-slate-200 flex flex-col shrink-0">
+      
+      <!-- List Header & Search -->
+      <div class="p-4 border-b border-slate-100 flex flex-col gap-4">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xl font-bold text-slate-800">Messages</h2>
+          <button class="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 transition-colors" onclick="openCreateGroupModal()" title="New Chat">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+        </div>
+        <!-- Search Bar -->
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </span>
+          <input type="text" placeholder="Search messages..." class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-brand-500 focus:bg-white transition-colors">
+        </div>
+      </div>
+
+      <!-- Scrollable Lists -->
+      <div class="flex-1 overflow-y-auto p-2 flex flex-col gap-4">
+        <div>
+          <h3 class="px-2 pb-1 text-xs font-semibold text-slate-400 uppercase tracking-wider">Channels</h3>
+          <div id="rooms-list-box" class="flex flex-col gap-0.5"></div>
+        </div>
+        
+        <div>
+          <h3 class="px-2 pb-1 text-xs font-semibold text-slate-400 uppercase tracking-wider flex justify-between">
+            <span>Direct Messages</span>
+            <span id="online-count" class="text-brand-500 font-bold">0</span>
+          </h3>
+          <div id="dms-list-box" class="flex flex-col gap-0.5"></div>
+        </div>
+      </div>
+      
+      <!-- Mobile Profile/Logout Strip -->
+      <div class="md:hidden border-t border-slate-200 p-3 bg-slate-50 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-medium text-slate-500">Logged in as:</span>
+          <span id="mobile-profile-name" class="text-sm font-bold text-slate-800">User</span>
+        </div>
+        <button onclick="handleLogout()" class="text-xs font-semibold text-red-500 bg-red-50 px-3 py-1.5 rounded-md border border-red-100">Logout</button>
+      </div>
+    </aside>
+    
+    <!-- COLUMN 3: Main Chat Panel -->
+    <main id="chat-main-panel" class="hidden md:flex flex-1 flex-col bg-slate-50 relative h-[100dvh]">
+      <!-- Active Chat Header -->
+      <header class="h-[70px] px-4 md:px-6 border-b border-slate-200 bg-white flex justify-between items-center shrink-0 shadow-sm z-10">
+        <div class="flex items-center gap-2">
+          <!-- Mobile Back Button -->
+          <button id="mobile-back-btn" class="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors" onclick="closeMobileChat()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          </button>
+          
+          <div class="flex flex-col">
+            <h2 id="active-chat-title" class="font-bold text-slate-800 text-lg flex items-center gap-2">Lounge Chat</h2>
+            <p id="active-chat-subtitle" class="text-xs text-slate-500 font-medium">Real-time stream</p>
+          </div>
+        </div>
+        
+        <div id="chat-header-actions" class="hidden flex gap-2 items-center">
+          <button id="manage-group-btn" class="text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-md transition-colors" onclick="openManageGroupModal()">Manage</button>
+          <button id="leave-group-btn" class="text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition-colors" onclick="leaveGroup()">Leave</button>
+        </div>
+      </header>
+      
+      <!-- Messages Log -->
+      <div id="chat-box" class="flex-1 p-4 md:p-6 overflow-y-auto flex flex-col gap-4"></div>
+      
+      <!-- Sticky Bottom Composer -->
+      <div class="p-3 md:p-4 bg-white border-t border-slate-200 shrink-0">
+        <form class="flex items-end gap-2 md:gap-3 max-w-5xl mx-auto" onsubmit="handleSendMessage(event)">
+          <div class="flex pb-2 gap-2 text-slate-400 hidden md:flex">
+            <button type="button" class="hover:text-slate-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+          </div>
+          
+          <div class="flex-1">
+            <input type="text" id="composer-message-input" class="w-full bg-slate-100 border border-slate-200 rounded-xl py-3 px-4 text-sm outline-none focus:bg-white focus:border-brand-500 transition-colors disabled:opacity-50" placeholder="Write a message..." disabled required autocomplete="off">
+          </div>
+          
+          <button type="submit" id="composer-send-btn" class="bg-brand-500 hover:bg-brand-600 text-white p-3 rounded-xl shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-300 shrink-0" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </form>
+      </div>
+    </main>
+  </div>
+  
+  <!-- MODALS -->
+  <div id="group-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+        <h2 class="font-bold text-lg text-slate-800">Create Group</h2>
+        <button class="text-slate-400 hover:text-slate-700 text-xl font-bold" onclick="closeCreateGroupModal()">✕</button>
+      </div>
+      <div class="p-5">
+        <form id="create-group-form" onsubmit="handleCreateGroup(event)" class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="group-name-input" class="text-xs font-semibold text-slate-600">Group Name</label>
+            <input type="text" id="group-name-input" class="input-field" placeholder="Enter name..." required minlength="3" maxlength="20">
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-slate-600">Select Members</label>
+            <div id="group-members-select-box" class="max-h-[200px] overflow-y-auto bg-slate-50 border border-slate-200 rounded-lg p-2 flex flex-col gap-1"></div>
+          </div>
+          <button type="submit" class="btn-primary mt-2">Create Group</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <div id="manage-group-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+        <h2 class="font-bold text-lg text-slate-800">Manage Members</h2>
+        <button class="text-slate-400 hover:text-slate-700 text-xl font-bold" onclick="closeManageGroupModal()">✕</button>
+      </div>
+      <div class="p-5">
+        <form id="manage-group-form" onsubmit="handleUpdateGroupMembers(event)" class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-slate-600">Update Members</label>
+            <div id="manage-members-select-box" class="max-h-[220px] overflow-y-auto bg-slate-50 border border-slate-200 rounded-lg p-2 flex flex-col gap-1"></div>
+          </div>
+          <button type="submit" class="btn-primary mt-2">Save Changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    let socket;
+    let currentMode = 'login';
+    let selectedAvatarUrl = 'https://api.dicebear.com/7.x/bottts/svg?seed=Leo';
+    let currentUser = null;
+    let activeRoomId = null; 
+    let allUsers = [];
+    let allGroups = [];
+    let onlineUsernames = new Set();
+    let unreadCounts = {}; 
+    
+    // Elements
+    const authView = document.getElementById('auth-view');
+    const chatView = document.getElementById('chat-view');
+    const chatSidebar = document.getElementById('chat-sidebar');
+    const chatMainPanel = document.getElementById('chat-main-panel');
+    const authErrorBox = document.getElementById('auth-error-box');
+    const avatarWrapper = document.getElementById('avatar-selection-wrapper');
+    const authSubmitBtn = document.getElementById('auth-submit-btn');
+    const chatBox = document.getElementById('chat-box');
+    const messageInput = document.getElementById('composer-message-input');
+    const sendBtn = document.getElementById('composer-send-btn');
+    const myAvatarImg = document.getElementById('my-profile-avatar');
+    const mobileProfileName = document.getElementById('mobile-profile-name');
+    const onlineCount = document.getElementById('online-count');
+    const wsStatusDot = document.getElementById('ws-status-dot');
+    const banner = document.getElementById('notification-banner');
+    const bannerText = document.getElementById('notification-text');
+    const dmsListBox = document.getElementById('dms-list-box');
+    const roomsListBox = document.getElementById('rooms-list-box');
+    const activeChatTitle = document.getElementById('active-chat-title');
+    const activeChatSubtitle = document.getElementById('active-chat-subtitle');
+    const groupModal = document.getElementById('group-modal');
+    const groupMembersSelectBox = document.getElementById('group-members-select-box');
+    const groupNameInput = document.getElementById('group-name-input');
+    
+    async function initApp() {
+      const token = localStorage.getItem('chat_token');
+      if (token) {
+        try {
+          const res = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            currentUser = data.user;
+            loadChatScreen();
+            connectWebSocket(token);
+            await fetchUsersAndGroups();
+            return;
+          }
+        } catch (e) {
+          console.warn("Auto-login failed.");
+        }
+        localStorage.removeItem('chat_token');
+      }
+      authView.classList.remove('hidden');
+      chatView.classList.add('hidden');
+    }
+    
+    async function fetchUsersAndGroups() {
+      const token = localStorage.getItem('chat_token');
+      if (!token) return;
+      try {
+        const usersRes = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
+        const usersData = await usersRes.json();
+        if (usersRes.ok && usersData.success) allUsers = usersData.users;
+        
+        const groupsRes = await fetch('/api/groups', { headers: { 'Authorization': `Bearer ${token}` } });
+        const groupsData = await groupsRes.json();
+        if (groupsRes.ok && groupsData.success) allGroups = groupsData.groups;
+        
+        renderRoomsAndGroups();
+        renderDirectMessages();
+      } catch (err) { console.error("Fetch failed", err); }
+    }
+    
+    function switchTab(mode) {
+      currentMode = mode;
+      authErrorBox.classList.add('hidden');
+      const tabLogin = document.getElementById('tab-login');
+      const tabReg = document.getElementById('tab-register');
+      
+      if (mode === 'login') {
+        tabLogin.classList.add('bg-white', 'shadow-sm', 'text-slate-600');
+        tabLogin.classList.remove('text-slate-500');
+        tabReg.classList.remove('bg-white', 'shadow-sm', 'text-slate-600');
+        tabReg.classList.add('text-slate-500');
+        avatarWrapper.style.display = 'none';
+        authSubmitBtn.textContent = 'Sign In';
+      } else {
+        tabReg.classList.add('bg-white', 'shadow-sm', 'text-slate-600');
+        tabReg.classList.remove('text-slate-500');
+        tabLogin.classList.remove('bg-white', 'shadow-sm', 'text-slate-600');
+        tabLogin.classList.add('text-slate-500');
+        avatarWrapper.style.display = 'flex';
+        authSubmitBtn.textContent = 'Create Account';
+      }
+    }
+    
+    function selectAvatar(index) {
+      document.querySelectorAll('.avatar-option').forEach((opt, idx) => {
+        if (idx === index) {
+          opt.classList.add('border-brand-500');
+          opt.classList.remove('border-transparent', 'hover:bg-slate-50');
+          selectedAvatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${opt.getAttribute('data-seed')}`;
+        } else {
+          opt.classList.remove('border-brand-500');
+          opt.classList.add('border-transparent', 'hover:bg-slate-50');
+        }
+      });
+    }
+    
+    async function handleAuthSubmit(event) {
+      event.preventDefault();
+      authErrorBox.classList.add('hidden');
+      const username = document.getElementById('auth-username').value.trim();
+      const password = document.getElementById('auth-password').value;
+      if (!username || !password) return;
+      
+      const url = currentMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
+      const body = currentMode === 'login' ? { username, password } : { username, password, avatar: selectedAvatarUrl };
+      
+      try {
+        authSubmitBtn.disabled = true;
+        authSubmitBtn.textContent = 'Connecting...';
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Authentication server connection failed.');
+        
+        localStorage.setItem('chat_token', data.token);
+        currentUser = data.user;
+        document.getElementById('auth-username').value = '';
+        document.getElementById('auth-password').value = '';
+        loadChatScreen();
+        connectWebSocket(data.token);
+        await fetchUsersAndGroups();
+      } catch (err) {
+        authErrorBox.textContent = err.message;
+        authErrorBox.classList.remove('hidden');
+        authSubmitBtn.disabled = false;
+        authSubmitBtn.textContent = currentMode === 'login' ? 'Sign In' : 'Create Account';
+      }
+    }
+    
+    function loadChatScreen() {
+      authView.classList.add('hidden');
+      chatView.classList.remove('hidden');
+      myAvatarImg.src = currentUser.avatar;
+      if(mobileProfileName) mobileProfileName.textContent = currentUser.username;
+    }
+    
+    function connectWebSocket(token) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUri = `${protocol}//${window.location.host}?token=${token}`;
+
+      wsStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 shadow-sm transition-colors';
+      socket = new WebSocket(wsUri);
+      
+      socket.onopen = () => {
+        wsStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm transition-colors';
+        messageInput.disabled = false;
+        sendBtn.disabled = false;
+        
+        if (!activeRoomId) {
+            switchRoom('lounge');
+        } else {
+            chatBox.innerHTML = '';
+            socket.send(JSON.stringify({ type: 'get_history', roomId: activeRoomId }));
+        }
+
+        appendSystemMsg("Connection established.");
+      };
+      
+      socket.onmessage = (event) => {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'system') appendSystemMsg(payload.message);
+        else if (payload.type === 'chat') {
+          if (payload.roomId === activeRoomId) {
+             const tempMock = document.getElementById(`msg-temp-${payload.tempId}`);
+             if (tempMock) tempMock.remove();
+             appendChatMsg(payload);
+          } else {
+            const targetRoom = payload.roomId || 'lounge';
+            unreadCounts[targetRoom] = (unreadCounts[targetRoom] || 0) + 1;
+            renderRoomsAndGroups();
+            renderDirectMessages();
+          }
+        } else if (payload.type === 'history') {
+          if (payload.roomId === activeRoomId) {
+            chatBox.innerHTML = '';
+            if (payload.messages.length === 0) {
+              chatBox.innerHTML = `
+                <div id="empty-chat-state" class="m-auto flex flex-col items-center justify-center text-slate-400 h-full gap-3 opacity-70 fade-in">
+                  <div class="w-16 h-16 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-3xl shadow-sm">👋</div>
+                  <p class="text-sm font-semibold tracking-wide">Start Chatting</p>
+                </div>
+              `;
+            } else {
+              payload.messages.forEach(msg => appendChatMsg(msg));
+            }
+          }
+        } else if (payload.type === 'online_list') {
+          onlineUsernames = new Set(payload.users.map(u => u.username));
+          onlineCount.textContent = payload.users.length;
+          renderDirectMessages();
+        } else if (payload.type === 'notification') {
+          triggerAlert(payload.message, payload.timestamp);
+        } else if (payload.type === 'group_created') {
+          fetchUsersAndGroups();
+          triggerAlert(`Added to group: ${payload.group.name}`, new Date());
+        } else if (payload.type === 'group_updated') {
+          fetchUsersAndGroups().then(() => {
+            if (activeRoomId === `group_${payload.group._id}`) switchRoom(activeRoomId); 
+          });
+        } else if (payload.type === 'user_registered') {
+          if (!allUsers.some(u => u.username === payload.user.username)) {
+            allUsers.push(payload.user);
+            renderDirectMessages();
+          }
+        }
+      };
+      
+      socket.onclose = (event) => {
+        messageInput.disabled = true;
+        sendBtn.disabled = true;
+        wsStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm transition-colors';
+        if (event.code === 4001) {
+          appendSystemMsg("Session expired. Please log in.");
+          handleLogout();
+          return;
+        }
+        appendSystemMsg("Reconnecting...");
+        setTimeout(() => {
+          const activeToken = localStorage.getItem('chat_token');
+          if (activeToken) connectWebSocket(activeToken);
+        }, 3000);
+      };
+    }
+    
+    function renderRoomsAndGroups() {
+      roomsListBox.innerHTML = '';
+      const loungeSelected = activeRoomId === 'lounge' ? 'selected' : '';
+      const unreadLounge = unreadCounts['lounge'] ? `<span class="unread-badge">${unreadCounts['lounge']}</span>` : '';
+
+      const loungeEl = document.createElement('div');
+      loungeEl.className = `online-user-item ${loungeSelected}`;
+      loungeEl.onclick = () => switchRoom('lounge');
+      loungeEl.innerHTML = `
+        <div class="avatar-wrapper"><span class="room-icon-badge">#</span></div>
+        <div class="online-user-name">Lounge Chat</div>${unreadLounge}
+      `;
+      roomsListBox.appendChild(loungeEl);
+      
+      allGroups.forEach(group => {
+        const groupRoomId = `group_${group._id}`;
+        const isSelected = activeRoomId === groupRoomId ? 'selected' : '';
+        const unread = unreadCounts[groupRoomId] ? `<span class="unread-badge">${unreadCounts[groupRoomId]}</span>` : '';
+        const el = document.createElement('div');
+        el.className = `online-user-item ${isSelected}`;
+        el.onclick = () => switchRoom(groupRoomId);
+        const avatarHtml = group.avatar
+          ? `<img src="${group.avatar}" class="w-10 h-10 rounded-full border border-slate-200 object-cover">`
+          : `<span class="room-icon-badge">👥</span>`;
+        el.innerHTML = `
+          <div class="avatar-wrapper">${avatarHtml}</div>
+          <div class="online-user-name">${group.name}</div>${unread}
+        `;
+        roomsListBox.appendChild(el);
+      });
+    }
+    
+    function renderDirectMessages() {
+      dmsListBox.innerHTML = '';
+      
+      const otherUsers = allUsers.filter(u => u.username !== currentUser.username);
+
+      if (otherUsers.length === 0) {
+        dmsListBox.innerHTML = '<div class="text-xs text-slate-400 px-2 py-1">No contacts</div>';
+        return;
+      }
+      
+      otherUsers.forEach(user => {
+        const isOnline = onlineUsernames.has(user.username);
+        const dmRoomId = `dm_${[currentUser.username, user.username].sort().join('_')}`;
+        const isSelected = activeRoomId === dmRoomId ? 'selected' : '';
+        const unread = unreadCounts[dmRoomId] ? `<span class="unread-badge">${unreadCounts[dmRoomId]}</span>` : '';
+        
+        const el = document.createElement('div');
+        el.className = `online-user-item ${isSelected}`;
+        el.onclick = () => switchRoom(dmRoomId);
+        el.innerHTML = `
+          <div class="avatar-wrapper">
+            <img src="${user.avatar}" alt="${user.username}" class="online-user-avatar">
+            <span class="online-indicator ${isOnline ? 'online' : 'offline'}"></span>
+          </div>
+          <div class="online-user-name">${user.username}</div>
+          ${unread}
+        `;
+        dmsListBox.appendChild(el);
+      });
+    }
+    
+    function switchRoom(roomId) {
+      if (activeRoomId === roomId && window.innerWidth >= 768) return;
+      unreadCounts[roomId] = 0;
+      activeRoomId = roomId;
+      
+      const headerActions = document.getElementById('chat-header-actions');
+      if (headerActions) headerActions.classList.add('hidden');
+      
+      if (roomId === 'lounge') {
+        activeChatTitle.textContent = "Lounge Chat";
+        activeChatSubtitle.textContent = "Public channel";
+      } else if (roomId.startsWith('dm_')) {
+        if (roomId.endsWith('_notes')) {
+          activeChatTitle.textContent = "Notes to Self";
+          activeChatSubtitle.textContent = "Private space";
+        } else {
+          let otherUsername = roomId.substring(3);
+          if (otherUsername.startsWith(`${currentUser.username}_`)) otherUsername = otherUsername.substring(currentUser.username.length + 1);
+          else if (otherUsername.endsWith(`_${currentUser.username}`)) otherUsername = otherUsername.substring(0, otherUsername.length - currentUser.username.length - 1);
+          activeChatTitle.textContent = otherUsername;
+          
+          const isUserOnline = onlineUsernames.has(otherUsername);
+          activeChatSubtitle.innerHTML = `<span class="inline-block w-2 h-2 rounded-full mr-1 ${isUserOnline ? 'bg-green-500' : 'bg-slate-400'}"></span>${isUserOnline ? 'Online' : 'Offline'}`;
+        }
+      } else if (roomId.startsWith('group_')) {
+        const groupId = roomId.replace('group_', '');
+        const groupObj = allGroups.find(g => g._id === groupId);
+        if (groupObj) {
+          activeChatTitle.innerHTML = groupObj.name;
+          activeChatSubtitle.textContent = `${groupObj.members.length} members`;
+          if (headerActions) {
+            headerActions.classList.remove('hidden');
+            document.getElementById('manage-group-btn').style.display = groupObj.creator === currentUser.username ? 'inline-block' : 'none';
+            document.getElementById('leave-group-btn').style.display = groupObj.creator !== currentUser.username ? 'inline-block' : 'none';
+          }
+        }
+      }
+      renderRoomsAndGroups();
+      renderDirectMessages();
+      
+      chatBox.innerHTML = '';
+      if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'get_history', roomId: roomId }));
+
+      if(window.innerWidth < 768) {
+        chatSidebar.classList.add('hidden');
+        chatMainPanel.classList.remove('hidden');
+        chatMainPanel.classList.add('flex');
+      }
+    }
+
+    function closeMobileChat() {
+      chatSidebar.classList.remove('hidden');
+      chatMainPanel.classList.add('hidden');
+      chatMainPanel.classList.remove('flex');
+      activeRoomId = null; 
+      renderRoomsAndGroups();
+      renderDirectMessages();
+    }
+    
+    async function openCreateGroupModal() {
+      await fetchUsersAndGroups();
+      groupModal.classList.add('visible');
+      groupMembersSelectBox.innerHTML = '';
+      const otherUsers = allUsers.filter(u => u.username !== currentUser.username);
+      if (otherUsers.length === 0) {
+        groupMembersSelectBox.innerHTML = '<div class="text-slate-400 text-sm p-2">No other users found</div>';
+        return;
+      }
+      otherUsers.forEach(user => {
+        const item = document.createElement('div');
+        item.className = 'p-2 rounded-lg hover:bg-slate-100 transition-colors';
+        item.innerHTML = `
+          <label class="flex items-center gap-3 cursor-pointer w-full">
+            <input type="checkbox" name="members" value="${user.username}" class="w-4 h-4 accent-brand-500">
+            <img src="${user.avatar}" class="w-8 h-8 rounded-full border border-slate-200">
+            <span class="text-sm font-medium text-slate-700">${user.username}</span>
+          </label>
+        `;
+        groupMembersSelectBox.appendChild(item);
+      });
+    }
+    function closeCreateGroupModal() { groupModal.classList.remove('visible'); groupNameInput.value = ''; }
+    
+    const manageGroupModal = document.getElementById('manage-group-modal');
+    const manageMembersSelectBox = document.getElementById('manage-members-select-box');
+    
+    function openManageGroupModal() {
+      if (!activeRoomId.startsWith('group_')) return;
+      const groupId = activeRoomId.replace('group_', '');
+      const groupObj = allGroups.find(g => g._id === groupId);
+      if (!groupObj) return;
+      manageMembersSelectBox.innerHTML = '';
+      const otherUsers = allUsers.filter(u => u.username !== currentUser.username);
+      otherUsers.forEach(user => {
+        const isMember = groupObj.members.includes(user.username);
+        const item = document.createElement('div');
+        item.className = 'p-2 rounded-lg hover:bg-slate-100 transition-colors';
+        item.innerHTML = `
+          <label class="flex items-center gap-3 cursor-pointer w-full">
+            <input type="checkbox" name="manage_members" value="${user.username}" class="w-4 h-4 accent-brand-500" ${isMember ? 'checked' : ''}>
+            <img src="${user.avatar}" class="w-8 h-8 rounded-full border border-slate-200">
+            <span class="text-sm font-medium text-slate-700">${user.username}</span>
+          </label>
+        `;
+        manageMembersSelectBox.appendChild(item);
+      });
+      manageGroupModal.classList.add('visible');
+    }
+    function closeManageGroupModal() { manageGroupModal.classList.remove('visible'); }
+    
+    async function handleUpdateGroupMembers(event) {
+      event.preventDefault();
+      if (!activeRoomId.startsWith('group_')) return;
+      const groupId = activeRoomId.replace('group_', '');
+      const checked = manageMembersSelectBox.querySelectorAll('input[name="manage_members"]:checked');
+      const selectedMembers = Array.from(checked).map(c => c.value);
+      const token = localStorage.getItem('chat_token');
+      try {
+        const res = await fetch(`/api/groups/${groupId}/members`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ members: selectedMembers })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) { closeManageGroupModal(); await fetchUsersAndGroups(); switchRoom(activeRoomId); } 
+        else alert(data.error || 'Failed to update members.');
+      } catch (err) { alert('An error occurred during update.'); }
+    }
+    
+    async function leaveGroup() {
+      if (!activeRoomId.startsWith('group_')) return;
+      if (!confirm('Are you sure you want to leave this group?')) return;
+      const groupId = activeRoomId.replace('group_', '');
+      const token = localStorage.getItem('chat_token');
+      try {
+        const res = await fetch(`/api/groups/${groupId}/leave`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (res.ok && data.success) { await fetchUsersAndGroups(); switchRoom('lounge'); }
+        else alert(data.error || 'Failed to leave group.');
+      } catch (err) { alert('An error occurred while leaving.'); }
+    }
+    
+    async function handleCreateGroup(event) {
+      event.preventDefault();
+      const name = groupNameInput.value.trim();
+      if (!name) return;
+      const checked = groupMembersSelectBox.querySelectorAll('input[name="members"]:checked');
+      const selectedMembers = Array.from(checked).map(c => c.value);
+      if (selectedMembers.length === 0) { alert('Select at least one member.'); return; }
+      const token = localStorage.getItem('chat_token');
+      try {
+        const res = await fetch('/api/groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ name, members: selectedMembers })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          closeCreateGroupModal();
+          await fetchUsersAndGroups();
+          switchRoom(`group_${data.group._id}`);
+        } else alert(data.error || 'Failed to create group.');
+      } catch (err) { alert('Error during group creation.'); }
+    }
+    
+    function getMessageStatusIcon(status) {
+      if (status === 'sending') {
+        return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+      }
+      if (status === 'sent') {
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      }
+      if (status === 'delivered') {
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300"><polyline points="18 6 7 17 2 12"></polyline><polyline points="22 6 12 16 11 15"></polyline></svg>`;
+      }
+      if (status === 'read') {
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-brand-500 drop-shadow-sm"><polyline points="18 6 7 17 2 12"></polyline><polyline points="22 6 12 16 11 15"></polyline></svg>`;
+      }
+      return '';
+    }
+
+    function appendSystemMsg(msg) {
+      const emptyState = document.getElementById('empty-chat-state');
+      if (emptyState) emptyState.remove();
+
+      const el = document.createElement('div');
+      el.className = 'msg-system';
+      el.textContent = msg;
+      chatBox.appendChild(el);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    function appendChatMsg(payload, isTemp = false) {
+      const emptyState = document.getElementById('empty-chat-state');
+      if (emptyState) emptyState.remove();
+
+      const el = document.createElement('div');
+      const isMe = payload.username === currentUser.username;
+      el.className = `msg-wrapper ${isMe ? 'me' : 'other'}`;
+      if (isTemp) el.id = `msg-temp-${payload.tempId}`;
+      
+      const rawTime = new Date(payload.timestamp);
+      const formattedTime = isNaN(rawTime) ? 'Now' : rawTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      let statusHtml = '';
+      if (isMe) {
+        const status = isTemp ? 'sending' : (payload.status || 'sent');
+        const statusId = payload.id ? `id="status-icon-${payload.id}"` : '';
+        statusHtml = `<span ${statusId} class="msg-status-icon">${getMessageStatusIcon(status)}</span>`;
+      }
+      
+      el.innerHTML = `
+        <img src="${payload.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + payload.username}" class="msg-avatar">
+        <div class="msg-body-wrapper">
+          <div class="msg-meta">
+            ${!isMe ? `<span class="msg-sender">${payload.username}</span>` : ''}
+            <span class="msg-time">${formattedTime}</span>
+            ${statusHtml}
+          </div>
+          <div class="msg-bubble"><span class="msg-text-content"></span></div>
+        </div>
+      `;
+      el.querySelector('.msg-text-content').textContent = payload.message;
+      chatBox.appendChild(el);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    function handleSendMessage(event) {
+      event.preventDefault();
+      const text = messageInput.value.trim();
+      if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
+      
+      const tempId = Date.now().toString();
+      
+      appendChatMsg({
+        tempId: tempId,
+        roomId: activeRoomId,
+        message: text,
+        username: currentUser.username,
+        avatar: currentUser.avatar,
+        timestamp: new Date().toISOString()
+      }, true);
+
+      socket.send(JSON.stringify({ 
+        tempId: tempId, 
+        roomId: activeRoomId, 
+        message: text 
+      }));
+      
+      messageInput.value = '';
+    }
+    
+    async function handleLogout() {
+      try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) { console.error(e); }
+      if (socket) socket.close();
+      localStorage.removeItem('chat_token');
+      currentUser = null;
+      activeRoomId = null;
+      unreadCounts = {};
+      document.getElementById('auth-username').value = '';
+      document.getElementById('auth-password').value = '';
+      authSubmitBtn.disabled = false;
+      authSubmitBtn.textContent = 'Sign In';
+      switchTab('login');
+      authView.classList.remove('hidden');
+      chatView.classList.add('hidden');
+      
+      if(window.innerWidth < 768) {
+        chatSidebar.classList.remove('hidden');
+        chatMainPanel.classList.add('hidden');
+        chatMainPanel.classList.remove('flex');
+      }
+    }
+    
+    function triggerAlert(message, time) {
+      const rawTime = new Date(time);
+      const formattedTime = isNaN(rawTime) ? 'Now' : rawTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      bannerText.textContent = `[${formattedTime}] ${message}`;
+      banner.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-[150%]');
+      banner.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(closeNotification, 5000);
+    }
+    
+    function closeNotification() { 
+      banner.classList.add('opacity-0', 'pointer-events-none', '-translate-y-[150%]');
+      banner.classList.remove('translate-y-0', 'opacity-100');
+    }
+    
+    initApp();
+  </script>
+</body>
+</html>
