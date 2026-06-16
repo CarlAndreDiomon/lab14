@@ -310,8 +310,10 @@
           if (res.ok && data.success) {
             currentUser = data.user;
             loadChatScreen();
-            connectWebSocket(token);
+            
+            // Wait for DB data to completely load BEFORE opening WebSocket
             await fetchUsersAndGroups();
+            connectWebSocket(token);
             return;
           }
         } catch (e) {
@@ -327,11 +329,15 @@
       const token = localStorage.getItem('chat_token');
       if (!token) return;
       try {
-        const usersRes = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
+        // Optimize: Fetch users and groups in parallel at exactly the same time
+        const [usersRes, groupsRes] = await Promise.all([
+          fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch('/api/groups', { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
+        
         const usersData = await usersRes.json();
         if (usersRes.ok && usersData.success) allUsers = usersData.users;
         
-        const groupsRes = await fetch('/api/groups', { headers: { 'Authorization': `Bearer ${token}` } });
         const groupsData = await groupsRes.json();
         if (groupsRes.ok && groupsData.success) allGroups = groupsData.groups;
         
@@ -397,9 +403,11 @@
         currentUser = data.user;
         document.getElementById('auth-username').value = '';
         document.getElementById('auth-password').value = '';
+        
         loadChatScreen();
-        connectWebSocket(data.token);
+        // Wait for DB data to completely load BEFORE opening WebSocket
         await fetchUsersAndGroups();
+        connectWebSocket(data.token);
       } catch (err) {
         authErrorBox.textContent = err.message;
         authErrorBox.classList.remove('hidden');
@@ -464,9 +472,20 @@
             }
           }
         } else if (payload.type === 'online_list') {
-          onlineUsernames = new Set(payload.users.map(u => u.username));
+          onlineUsernames = new Set();
+          
+          payload.users.forEach(u => {
+            onlineUsernames.add(u.username);
+            // Safety Net: Instantly merge any new users broadcasting from WebSocket 
+            // into our allUsers array so they populate instantly without a slow page refresh
+            if (!allUsers.some(existing => existing.username === u.username)) {
+              allUsers.push({ username: u.username, avatar: u.avatar });
+            }
+          });
+          
           onlineCount.textContent = payload.users.length;
           renderDirectMessages();
+          
         } else if (payload.type === 'notification') {
           triggerAlert(payload.message, payload.timestamp);
         } else if (payload.type === 'group_created') {
