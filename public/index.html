@@ -80,14 +80,12 @@
 </head>
 <body class="font-sans text-slate-900 min-h-[100dvh] flex items-center justify-center overflow-hidden selection:bg-brand-500/30 selection:text-brand-600">
   
-  <!-- Notification Banner -->
   <div id="notification-banner" class="fixed top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-slate-800 text-white px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg z-[9999] opacity-0 pointer-events-none -translate-y-[150%] transition-all duration-300">
     <span>🔔</span>
     <span id="notification-text" class="flex-1 text-sm font-medium">System notice</span>
     <button onclick="closeNotification()" class="w-6 h-6 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-xs">✕</button>
   </div>
   
-  <!-- AUTHENTICATION VIEW -->
   <div id="auth-view" class="bg-white w-full max-w-[400px] p-8 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-6 z-10 m-4">
     <div class="text-center flex flex-col gap-1">
       <h1 class="text-2xl font-bold text-slate-900">Infinity Chat</h1>
@@ -125,24 +123,19 @@
     </form>
   </div>
   
-  <!-- CHAT VIEW (3-COLUMN DESKTOP LAYOUT) -->
   <div id="chat-view" class="hidden w-full h-[100dvh] bg-white flex overflow-hidden">
     
-    <!-- COLUMN 1: Thin Navigation Dock -->
     <nav class="w-[72px] bg-slate-50 border-r border-slate-200 flex flex-col items-center py-5 shrink-0 hidden md:flex">
-      <!-- Brand Icon (Green squircle) -->
       <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white text-xl shadow-sm mb-6">
         💬
       </div>
       
-      <!-- Nav Links -->
       <div class="flex flex-col gap-4 flex-1 w-full items-center">
         <div class="nav-icon-btn active" title="All Chats">
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
         </div>
       </div>
 
-      <!-- Footer Nav (Status, Profile, Logout) -->
       <div class="flex flex-col gap-4 items-center">
         <div id="ws-status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm transition-colors" title="Connection Status"></div>
         <img id="my-profile-avatar" src="" alt="Me" class="w-10 h-10 rounded-full border border-slate-200 cursor-pointer object-cover">
@@ -152,10 +145,8 @@
       </div>
     </nav>
 
-    <!-- COLUMN 2: Messages List Panel -->
     <aside id="chat-sidebar" class="w-full md:w-[340px] bg-white border-r border-slate-200 flex flex-col shrink-0">
       
-      <!-- List Header & Search -->
       <div class="p-4 border-b border-slate-100 flex flex-col gap-4">
         <div class="flex justify-between items-center">
           <h2 class="text-xl font-bold text-slate-800">Messages</h2>
@@ -163,7 +154,6 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </button>
         </div>
-        <!-- Search Bar -->
         <div class="relative">
           <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -172,7 +162,6 @@
         </div>
       </div>
 
-      <!-- Scrollable Lists -->
       <div class="flex-1 overflow-y-auto p-2 flex flex-col gap-4">
         <div>
           <h3 class="px-2 pb-1 text-xs font-semibold text-slate-400 uppercase tracking-wider">Channels</h3>
@@ -188,7 +177,6 @@
         </div>
       </div>
       
-      <!-- Mobile Profile/Logout Strip -->
       <div class="md:hidden border-t border-slate-200 p-3 bg-slate-50 flex justify-between items-center shrink-0">
         <div class="flex items-center gap-2">
           <span class="text-xs font-medium text-slate-500">Logged in as:</span>
@@ -198,12 +186,9 @@
       </div>
     </aside>
     
-    <!-- COLUMN 3: Main Chat Panel -->
     <main id="chat-main-panel" class="hidden md:flex flex-1 flex-col bg-slate-50 relative h-[100dvh]">
-      <!-- Active Chat Header -->
       <header class="h-[70px] px-4 md:px-6 border-b border-slate-200 bg-white flex justify-between items-center shrink-0 shadow-sm z-10">
         <div class="flex items-center gap-2">
-          <!-- Mobile Back Button -->
           <button id="mobile-back-btn" class="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors" onclick="closeMobileChat()">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
           </button>
@@ -220,10 +205,8 @@
         </div>
       </header>
       
-      <!-- Messages Log -->
       <div id="chat-box" class="flex-1 p-4 md:p-6 overflow-y-auto flex flex-col gap-4"></div>
       
-      <!-- Sticky Bottom Composer -->
       <div class="p-3 md:p-4 bg-white border-t border-slate-200 shrink-0">
         <form class="flex items-end gap-2 md:gap-3 max-w-5xl mx-auto" onsubmit="handleSendMessage(event)">
           <div class="flex pb-2 gap-2 text-slate-400 hidden md:flex">
@@ -242,7 +225,6 @@
     </main>
   </div>
   
-  <!-- MODALS -->
   <div id="group-modal" class="modal-overlay">
     <div class="modal-content">
       <div class="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -283,7 +265,6 @@
     </div>
   </div>
   
-  <!-- JAVASCRIPT LOGIC -->
   <script>
     let socket;
     let currentMode = 'login';
@@ -461,8 +442,6 @@
         if (payload.type === 'system') appendSystemMsg(payload.message);
         else if (payload.type === 'chat') {
           if (payload.roomId === activeRoomId) {
-             const tempMock = document.getElementById(`msg-temp-${payload.tempId}`);
-             if (tempMock) tempMock.remove();
              appendChatMsg(payload);
           } else {
             const targetRoom = payload.roomId || 'lounge';
@@ -750,22 +729,6 @@
       } catch (err) { alert('Error during group creation.'); }
     }
     
-    function getMessageStatusIcon(status) {
-      if (status === 'sending') {
-        return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
-      }
-      if (status === 'sent') {
-        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-      }
-      if (status === 'delivered') {
-        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300"><polyline points="18 6 7 17 2 12"></polyline><polyline points="22 6 12 16 11 15"></polyline></svg>`;
-      }
-      if (status === 'read') {
-        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-brand-500 drop-shadow-sm"><polyline points="18 6 7 17 2 12"></polyline><polyline points="22 6 12 16 11 15"></polyline></svg>`;
-      }
-      return '';
-    }
-
     function appendSystemMsg(msg) {
       const emptyState = document.getElementById('empty-chat-state');
       if (emptyState) emptyState.remove();
@@ -777,24 +740,16 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
     
-    function appendChatMsg(payload, isTemp = false) {
+    function appendChatMsg(payload) {
       const emptyState = document.getElementById('empty-chat-state');
       if (emptyState) emptyState.remove();
 
       const el = document.createElement('div');
       const isMe = payload.username === currentUser.username;
       el.className = `msg-wrapper ${isMe ? 'me' : 'other'}`;
-      if (isTemp) el.id = `msg-temp-${payload.tempId}`;
       
       const rawTime = new Date(payload.timestamp);
       const formattedTime = isNaN(rawTime) ? 'Now' : rawTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      let statusHtml = '';
-      if (isMe) {
-        const status = isTemp ? 'sending' : (payload.status || 'sent');
-        const statusId = payload.id ? `id="status-icon-${payload.id}"` : '';
-        statusHtml = `<span ${statusId} class="msg-status-icon">${getMessageStatusIcon(status)}</span>`;
-      }
       
       el.innerHTML = `
         <img src="${payload.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + payload.username}" class="msg-avatar">
@@ -802,7 +757,6 @@
           <div class="msg-meta">
             ${!isMe ? `<span class="msg-sender">${payload.username}</span>` : ''}
             <span class="msg-time">${formattedTime}</span>
-            ${statusHtml}
           </div>
           <div class="msg-bubble"><span class="msg-text-content"></span></div>
         </div>
@@ -817,19 +771,7 @@
       const text = messageInput.value.trim();
       if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
       
-      const tempId = Date.now().toString();
-      
-      appendChatMsg({
-        tempId: tempId,
-        roomId: activeRoomId,
-        message: text,
-        username: currentUser.username,
-        avatar: currentUser.avatar,
-        timestamp: new Date().toISOString()
-      }, true);
-
       socket.send(JSON.stringify({ 
-        tempId: tempId, 
         roomId: activeRoomId, 
         message: text 
       }));
