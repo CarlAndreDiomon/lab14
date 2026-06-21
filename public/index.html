@@ -80,13 +80,20 @@
 </head>
 <body class="font-sans text-slate-900 min-h-[100dvh] flex items-center justify-center overflow-hidden selection:bg-brand-500/30 selection:text-brand-600">
   
+  <!-- NEW: Global Loading Splash Screen -->
+  <div id="global-loader" class="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center transition-opacity duration-500">
+    <div class="w-16 h-16 bg-brand-500 rounded-2xl flex items-center justify-center text-white text-3xl shadow-xl animate-pulse mb-4">💬</div>
+    <h2 class="text-xl font-bold text-slate-800 tracking-tight">Infinity Chat</h2>
+    <p class="text-sm text-slate-500 font-medium mt-1">Connecting workspace...</p>
+  </div>
+
   <div id="notification-banner" class="fixed top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-slate-800 text-white px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg z-[9999] opacity-0 pointer-events-none -translate-y-[150%] transition-all duration-300">
     <span>🔔</span>
     <span id="notification-text" class="flex-1 text-sm font-medium">System notice</span>
     <button onclick="closeNotification()" class="w-6 h-6 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-xs">✕</button>
   </div>
   
-  <div id="auth-view" class="bg-white w-full max-w-[400px] p-8 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-6 z-10 m-4">
+  <div id="auth-view" class="bg-white w-full max-w-[400px] p-8 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-6 z-10 m-4 hidden">
     <div class="text-center flex flex-col gap-1">
       <h1 class="text-2xl font-bold text-slate-900">Infinity Chat</h1>
       <p id="auth-subtitle" class="text-sm text-slate-500">Sign in to continue</p>
@@ -126,7 +133,7 @@
   <div id="chat-view" class="hidden w-full h-[100dvh] bg-white flex overflow-hidden">
     
     <nav class="w-[72px] bg-slate-50 border-r border-slate-200 flex flex-col items-center py-5 shrink-0 hidden md:flex">
-      <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white text-xl shadow-sm mb-6">
+      <div class="w-12 h-12 bg-brand-500 rounded-xl flex items-center justify-center text-white text-xl shadow-sm mb-6">
         💬
       </div>
       
@@ -270,13 +277,14 @@
     let currentMode = 'login';
     let selectedAvatarUrl = 'https://api.dicebear.com/7.x/bottts/svg?seed=Leo';
     let currentUser = null;
-    let activeRoomId = null; 
+    let activeRoomId = sessionStorage.getItem('current_room') || null; 
     let allUsers = [];
     let allGroups = [];
     let onlineUsernames = new Set();
     let unreadCounts = {}; 
     
     // Elements
+    const globalLoader = document.getElementById('global-loader');
     const authView = document.getElementById('auth-view');
     const chatView = document.getElementById('chat-view');
     const chatSidebar = document.getElementById('chat-sidebar');
@@ -301,6 +309,14 @@
     const groupMembersSelectBox = document.getElementById('group-members-select-box');
     const groupNameInput = document.getElementById('group-name-input');
     
+    // Helper to gracefully remove the splash screen
+    function hideLoader() {
+      if (globalLoader) {
+        globalLoader.classList.add('opacity-0');
+        setTimeout(() => globalLoader.classList.add('hidden'), 500);
+      }
+    }
+
     async function initApp() {
       const token = localStorage.getItem('chat_token');
       if (token) {
@@ -314,7 +330,7 @@
             // Wait for DB data to completely load BEFORE opening WebSocket
             await fetchUsersAndGroups();
             connectWebSocket(token);
-            return;
+            return; // Exit here. The socket.onopen will hide the loader.
           }
         } catch (e) {
           console.warn("Auto-login failed.");
@@ -323,13 +339,13 @@
       }
       authView.classList.remove('hidden');
       chatView.classList.add('hidden');
+      hideLoader(); // Hide loader if we drop into the login screen
     }
     
     async function fetchUsersAndGroups() {
       const token = localStorage.getItem('chat_token');
       if (!token) return;
       try {
-        // Optimize: Fetch users and groups in parallel at exactly the same time
         const [usersRes, groupsRes] = await Promise.all([
           fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } }),
           fetch('/api/groups', { headers: { 'Authorization': `Bearer ${token}` } })
@@ -435,14 +451,19 @@
         messageInput.disabled = false;
         sendBtn.disabled = false;
         
+        // Handle Mobile Routing & Restore previous state
         if (!activeRoomId) {
-            switchRoom('lounge');
+            if (window.innerWidth >= 768) {
+                switchRoom('lounge');
+            }
         } else {
-            chatBox.innerHTML = '';
-            socket.send(JSON.stringify({ type: 'get_history', roomId: activeRoomId }));
+            const roomToRestore = activeRoomId;
+            activeRoomId = null; 
+            switchRoom(roomToRestore);
         }
 
         appendSystemMsg("Connection established.");
+        hideLoader(); // WebSocket connected, hide the splash screen!
       };
       
       socket.onmessage = (event) => {
@@ -477,7 +498,6 @@
           payload.users.forEach(u => {
             onlineUsernames.add(u.username);
             // Safety Net: Instantly merge any new users broadcasting from WebSocket 
-            // into our allUsers array so they populate instantly without a slow page refresh
             if (!allUsers.some(existing => existing.username === u.username)) {
               allUsers.push({ username: u.username, avatar: u.avatar });
             }
@@ -588,6 +608,9 @@
       unreadCounts[roomId] = 0;
       activeRoomId = roomId;
       
+      // Save current room so refresh works gracefully
+      sessionStorage.setItem('current_room', roomId);
+      
       const headerActions = document.getElementById('chat-header-actions');
       if (headerActions) headerActions.classList.add('hidden');
       
@@ -638,6 +661,9 @@
       chatMainPanel.classList.add('hidden');
       chatMainPanel.classList.remove('flex');
       activeRoomId = null; 
+      
+      sessionStorage.removeItem('current_room');
+      
       renderRoomsAndGroups();
       renderDirectMessages();
     }
@@ -802,6 +828,7 @@
       try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) { console.error(e); }
       if (socket) socket.close();
       localStorage.removeItem('chat_token');
+      sessionStorage.removeItem('current_room'); // Clear the saved mobile room!
       currentUser = null;
       activeRoomId = null;
       unreadCounts = {};
